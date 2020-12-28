@@ -1,6 +1,7 @@
 import PySimpleGUI as sg
 import random
 import matplotlib
+import statistics
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 # Settings
@@ -47,8 +48,13 @@ def draw_figure(canvas, figure):
     return figure_canvas_agg
 
 def getFigure(results):
+	med = statistics.median(results)
 	fig = matplotlib.figure.Figure(figsize=(5, 4), dpi=100)
-	fig.add_subplot(111).hist(results, density=True, bins=30)
+	fig.add_subplot(111).hist(results, bins='auto', color='c', edgecolor='k', alpha=0.65)
+	plt = fig.axes[0]
+	plt.axvline(med, color='k', linestyle='dashed', linewidth=1)
+	min_ylim, max_ylim = plt.get_ylim()
+	plt.text(med*1.1, max_ylim*0.9, 'Median: {:.2f}'.format(med))
 	return fig
 
 
@@ -100,6 +106,7 @@ for game in games:
 	backSet.add('-BACK{}-'.format(colNum))
 	goSet.add('-GO{}-'.format(colNum))
 	colNum += 1
+backSet.add('-BACK0-')
 
 menu = [[sg.Text("Which game to simulate rolls?")],
 	   [sg.Button(game) for game in games],
@@ -135,7 +142,8 @@ genshin = [[sg.Text("Unit rarity:")],
 	  	  [sg.Text("Number of rolls to simulate:"), sg.Input(key="-GINUMROLLS-")],
 	  	  [sg.Button('Go!', key='-GO4-'), sg.Button('Back', key='-BACK4-')]]
 
-layout = [[sg.Column(menu, key='-COL1-'), 
+layout = [[sg.Column(graph, visible=False, key='-COL0-'),
+		   sg.Column(menu, key='-COL1-'), 
 		   sg.Column(arknights, visible=False, key='-COL2-'),
 		   sg.Column(fgo, visible=False, key='-COL3-'),
 		   sg.Column(genshin, visible=False, key='-COL4-')]]
@@ -144,6 +152,7 @@ window = sg.Window('Gacha Simulator', layout)
 
 currGame = None
 currCol = '-COL1-'
+canvas = None
 while True:
     event, values = window.read()
     if event in (None, 'Exit', '-EXIT-', sg.WIN_CLOSED):
@@ -154,6 +163,8 @@ while True:
     	currCol = gamesMapping[currGame]
     	window[currCol].update(visible=True)
     elif event in backSet:
+    	if canvas:
+    		canvas.get_tk_widget().pack_forget()
     	currGame = None
     	window[currCol].update(visible=False)
     	window['-COL1-'].update(visible=True)
@@ -163,6 +174,10 @@ while True:
     	if numTimes:
     		results = runSimulation(numTimes, rarity, numRateUp, currGame)
     		fig = getFigure(results)
+    		window[currCol].update(visible=False)
+    		window['-COL0-'].update(visible=True)
+    		canvas = draw_figure(window['-CANVAS-'].TKCanvas, fig)
+    		currCol = '-COL0-'
     	else:
     		print("Invalid input")
 
