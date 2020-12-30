@@ -8,9 +8,9 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 matplotlib.use("TkAgg")
 
 # Utility functions
-def runSimulation(numTimes, rarity, numRateUp, game):
+def runSimulation(limited, numTimes, rarity, numRateUp, game):
 	if game == "Arknights":
-		return simulateArknights(numTimes, rarity, numRateUp)
+		return simulateArknights(limited, numTimes, rarity, numRateUp)
 	elif game == "Fate Grand/Order":
 		return simulateFGO(numTimes, rarity, numRateUp)
 	elif game == "Genshin Impact":
@@ -25,7 +25,7 @@ def decoder(game, values):
 			try:
 				numTimes = int(numTimes)
 			except:
-				return None, None, None
+				return None, None, None, None
 		if values['-FGORARE5-']:
 			rarity = 5
 		else:
@@ -37,9 +37,34 @@ def decoder(game, values):
 				numRateUp = 2
 		else:
 			numRateUp = 0
-		return numTimes, rarity, numRateUp
-	else:
-		return None
+		return None, numTimes, rarity, numRateUp
+	elif game == "Arknights":
+		numTimes = values['-ARKNUMROLLS-']
+		if numTimes == '':
+			numTimes = 0
+		else:
+			try:
+				numTimes = int(numTimes)
+			except:
+				return None, None, None, None
+		if values['-ARKRARE6-']:
+			rarity = 6
+		else:
+			rarity = 5
+		if values['-ARKRU-']:
+			if values['-ARKRU1-']:
+				numRateUp = 1
+			elif values['-ARKRU2-']:
+				numRateUp = 2
+			else:
+				numRateUp = 3
+		else:
+			numRateUp = 0
+		if values['-ARKLI-']:
+			limited = True
+		else:
+			limited = False
+		return limited, numTimes, rarity, numRateUp
 
 def draw_figure(canvas, figure):
     figure_canvas_agg = FigureCanvasTkAgg(figure, canvas)
@@ -50,7 +75,7 @@ def draw_figure(canvas, figure):
 def getFigure(results):
 	med = statistics.median(results)
 	fig = matplotlib.figure.Figure(figsize=(5, 4), dpi=100)
-	fig.add_subplot(111).hist(results, bins='auto', color='c', edgecolor='k', alpha=0.65)
+	fig.add_subplot(111).hist(results, bins=30, color='c', edgecolor='k', alpha=0.65)
 	plt = fig.axes[0]
 	plt.axvline(med, color='k', linestyle='dashed', linewidth=1)
 	min_ylim, max_ylim = plt.get_ylim()
@@ -59,6 +84,61 @@ def getFigure(results):
 
 
 # Simulation functions
+def simulateArknights(limited, numTimes, rarity, numRateUp):
+	# Ignore guaranteed 5* in first 10 rolls (no idea how it works)
+	sixStar = 0.02
+	fiveStar = 0.08
+
+	results = []
+	if rarity == 5:
+		if numRateUp == 0:
+			rate = fiveStar
+		elif numRateUp == 1:
+			rate = fiveStar / 2
+		elif numRateUp == 2:
+			rate = fiveStar / 4
+		else:
+			rate = fiveStar / 6
+		for trial in range(numTimes):
+			count = 0
+			while True:
+				count += 1
+				roll = random.random()
+				if roll <= rate:
+					break
+			results.append(count)
+		return results
+	else:
+		for trial in range(numTimes):
+			count = 0
+			currRate = sixStar
+			while True:
+				count += 1
+				if count > 50:
+					currRate += 0.02
+				if numRateUp == 0:
+					rate = currRate
+				else:
+					if not limited:
+						if numRateUp == 1:
+							rate = currRate / 2
+						elif numRateUp == 2:
+							rate = currRate / 4
+						else:
+							rate = currRate / 6
+					else:
+						if numRateUp == 1:
+							rate = currRate * 0.7
+						elif numRateUp == 2:
+							rate = currRate * 0.7 / 2
+						else:
+							rate = currRate * 0.7 / 3
+				roll = random.random()
+				if roll <= rate:
+					break
+			results.append(count)
+		return results
+
 def simulateFGO(numTimes, rarity, numRateUp):
 	# Define rates
 	rateUp5Star = 0.007
@@ -122,6 +202,11 @@ arknights = [[sg.Text("Unit rarity:")],
 			[sg.Radio('6 Star', 'RADIO1', default=True, key="-ARKRARE6-"), 
 			 sg.Radio('5 Star', 'RADIO1', default=False, key="-ARKRARE5-")],
 			[sg.Checkbox('Rate up unit?', default=False, key="-ARKRU-")],
+			[sg.Text("Number of rate up units:")],
+	  		[sg.Radio('1', 'RADIO5', default=True, key="-ARKRU1-"), 
+	   		 sg.Radio('2', 'RADIO5', default=False, key="-ARKRU2-"),
+	   		 sg.Radio('3', 'RADIO5', default=False, key="-ARKRU3-")],
+	   		[sg.Checkbox('Limited unit?', default=False, key="-ARKLI-")],
 			[sg.Text("Number of rolls to simulate:"), sg.Input(key="-ARKNUMROLLS-")],
 			[sg.Button('Go!', key='-GO2-'), sg.Button('Back', key='-BACK2-')]]
 
@@ -170,9 +255,9 @@ while True:
     	window['-COL1-'].update(visible=True)
     	currCol = '-COL1-'
     elif event in goSet:
-    	numTimes, rarity, numRateUp = decoder(currGame, values)
+    	limited, numTimes, rarity, numRateUp = decoder(currGame, values)
     	if numTimes:
-    		results = runSimulation(numTimes, rarity, numRateUp, currGame)
+    		results = runSimulation(limited, numTimes, rarity, numRateUp, currGame)
     		fig = getFigure(results)
     		window[currCol].update(visible=False)
     		window['-COL0-'].update(visible=True)
