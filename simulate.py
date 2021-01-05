@@ -1,5 +1,7 @@
 import PySimpleGUI as sg
 import random
+import os
+import glob
 import matplotlib
 import statistics
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -14,7 +16,7 @@ def runSimulation(limited, numTimes, rarity, numRateUp, game):
 	elif game == "Fate Grand/Order":
 		return simulateFGO(numTimes, rarity, numRateUp)
 	elif game == "Genshin Impact":
-		return simulateGenshin(numTimes, rarity, numRateUp)
+		return simulateGenshin(limited, numTimes, rarity)
 
 def decoder(game, values):
 	if game == "Fate Grand/Order":
@@ -65,6 +67,24 @@ def decoder(game, values):
 		else:
 			limited = False
 		return limited, numTimes, rarity, numRateUp
+	elif game == 'Genshin Impact':
+		numTimes = values['-GINUMROLLS-']
+		if numTimes == '':
+			numTimes = 0
+		else:
+			try:
+				numTimes = int(numTimes)
+			except:
+				return None, None, None, None
+		if values['-GIRARE5-']:
+			rarity = 5
+		else:
+			rarity = 4
+		if values['-GIRU-']:
+			limited = True
+		else:
+			limited = False
+		return limited, numTimes, rarity, None
 
 def draw_figure(canvas, figure):
     figure_canvas_agg = FigureCanvasTkAgg(figure, canvas)
@@ -79,8 +99,26 @@ def getFigure(results):
 	plt = fig.axes[0]
 	plt.axvline(med, color='k', linestyle='dashed', linewidth=1)
 	min_ylim, max_ylim = plt.get_ylim()
-	plt.text(med*1.1, max_ylim*0.9, 'Median: {:.2f}'.format(med))
+	min_xlim, max_xlim = plt.get_xlim()
+	plt.text(max_xlim*0.7, max_ylim*0.9, 'Median: {:.2f}'.format(med))
+	plt.set_title('Results of {} simulations'.format(len(results)))
 	return fig
+
+def saveImage(figure, game):
+	if game == 'Arknights':
+		abbrev = 'AK'
+	elif game == 'Fate Grand/Order':
+		abbrev = 'FGO'
+	elif game == 'Genshin Impact':
+		abbrev = 'GI'
+	if not os.path.isdir('savedImages'):
+		os.makedirs('savedImages')
+	currImages = glob.glob('savedImages/*.png')
+	count = 0
+	for file in currImages:
+		if abbrev in file:
+			count += 1
+	figure.savefig('savedImages/{}{}.png'.format(abbrev, str(count)))
 
 
 # Simulation functions
@@ -173,6 +211,62 @@ def simulateFGO(numTimes, rarity, numRateUp):
 		results.append(count)
 	return results
 
+def simulateGenshin(limited, numTimes, rarity):
+	# Define rates
+	fiveStar = 0.006
+	fourStar = 0.051
+
+	if rarity == 5:
+		rate = fiveStar
+		pity = 90
+	else:
+		rate = fourStar
+		pity = 10
+	results = []
+	if limited:
+		for trial in range(numTimes):
+			firstHit = True
+			count = 0
+			pityCount = 0
+			while True:
+				count += 1
+				pityCount += 1
+				if pityCount == pity:
+					if firstHit:
+						roll = random.random()
+						if roll <= 0.5:
+							break
+						firstHit = False
+						pityCount = 0
+					else:
+						break
+				roll = random.random()
+				if roll <= rate:
+					if firstHit:
+						roll = random.random()
+						if roll <= 0.5:
+							break
+						firstHit = False
+						pityCount = 0
+					else:
+						break
+			results.append(count)
+	else:
+		for trial in range(numTimes):
+			count = 0
+			while True:
+				count += 1
+				if count == pity:
+					break
+				roll = random.random()
+				if roll <= rate:
+					break
+			results.append(count)
+	return results
+
+
+
+
 
 # List of supported games
 games = ['Arknights', 'Fate Grand/Order', 'Genshin Impact']
@@ -223,7 +317,7 @@ fgo = [[sg.Text("Unit rarity:")],
 genshin = [[sg.Text("Unit rarity:")],
 	 	  [sg.Radio('5 Star', 'RADIO4', default=True, key="-GIRARE5-"), 
 	       sg.Radio('4 Star', 'RADIO4', default=False, key="-GIRARE4-")],
-	      [sg.Checkbox('Rate up unit?', default=False, key="-GIRU-")],
+	      [sg.Checkbox('Limited Banner?', default=False, key="-GIRU-")],
 	  	  [sg.Text("Number of rolls to simulate:"), sg.Input(key="-GINUMROLLS-")],
 	  	  [sg.Button('Go!', key='-GO4-'), sg.Button('Back', key='-BACK4-')]]
 
@@ -265,6 +359,8 @@ while True:
     		currCol = '-COL0-'
     	else:
     		print("Invalid input")
+    elif event == '-SAVE-':
+    	saveImage(fig, currGame)
 
 
 
