@@ -95,7 +95,7 @@ def draw_figure(canvas, figure):
 def getFigure(results):
 	med = statistics.median(results)
 	fig = matplotlib.figure.Figure(figsize=(5, 4), dpi=100)
-	fig.add_subplot(111).hist(results, bins=30, color='c', edgecolor='k', alpha=0.65)
+	fig.add_subplot(111).hist(results, bins=30, color='c', edgecolor='k', alpha=0.65, density=True)
 	plt = fig.axes[0]
 	plt.axvline(med, color='k', linestyle='dashed', linewidth=1)
 	min_ylim, max_ylim = plt.get_ylim()
@@ -123,7 +123,7 @@ def saveImage(figure, game):
 
 # Simulation functions
 def simulateArknights(limited, numTimes, rarity, numRateUp):
-	# Ignore guaranteed 5* in first 10 rolls (no idea how it works)
+	# Ignore guaranteed 5* or 6* in first 10 rolls (no idea how it works)
 	sixStar = 0.02
 	fiveStar = 0.08
 
@@ -148,32 +148,34 @@ def simulateArknights(limited, numTimes, rarity, numRateUp):
 		return results
 	else:
 		for trial in range(numTimes):
+			pityCount = 0
 			count = 0
 			currRate = sixStar
 			while True:
 				count += 1
-				if count > 50:
-					currRate += 0.02
-				if numRateUp == 0:
-					rate = currRate
-				else:
-					if not limited:
-						if numRateUp == 1:
-							rate = currRate / 2
-						elif numRateUp == 2:
-							rate = currRate / 4
-						else:
-							rate = currRate / 6
-					else:
-						if numRateUp == 1:
-							rate = currRate * 0.7
-						elif numRateUp == 2:
-							rate = currRate * 0.7 / 2
-						else:
-							rate = currRate * 0.7 / 3
-				roll = random.random()
-				if roll <= rate:
+				if limited and count == 300:
 					break
+				pityCount += 1
+				if pityCount > 50:
+					currRate += 0.02
+				roll = random.random()
+				if roll <= currRate:
+					if numRateUp == 0:
+						break
+					if not limited:
+						roll = random.random()
+						if roll <= 0.5 / numRateUp:
+							break
+						else:
+							currRate = sixStar
+							pityCount = 0
+					else:
+						roll = random.random()
+						if roll <= 0.7 / numRateUp:
+							break
+						else:
+							currRate = sixStar
+							pityCount = 0
 			results.append(count)
 		return results
 
@@ -361,7 +363,5 @@ while True:
     		print("Invalid input")
     elif event == '-SAVE-':
     	saveImage(fig, currGame)
-
-
 
 window.close()
