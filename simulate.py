@@ -217,6 +217,9 @@ def simulateGenshin(limited, numTimes, rarity):
 	# Define rates
 	fiveStar = 0.006
 	fourStar = 0.051
+	fiveStarSoftPity = 0.324
+
+	softPity = 76
 
 	if rarity == 5:
 		rate = fiveStar
@@ -224,15 +227,20 @@ def simulateGenshin(limited, numTimes, rarity):
 	else:
 		rate = fourStar
 		pity = 10
+
+	origRate = rate
 	results = []
 	if limited:
 		for trial in range(numTimes):
 			firstHit = True
 			count = 0
 			pityCount = 0
+			rate = origRate
 			while True:
 				count += 1
 				pityCount += 1
+				if pityCount == softPity:
+					rate = fiveStarSoftPity
 				if pityCount == pity:
 					if firstHit:
 						roll = random.random()
@@ -256,8 +264,11 @@ def simulateGenshin(limited, numTimes, rarity):
 	else:
 		for trial in range(numTimes):
 			count = 0
+			rate = origRate
 			while True:
 				count += 1
+				if count == softPity:
+					rate = fiveStarSoftPity
 				if count == pity:
 					break
 				roll = random.random()
